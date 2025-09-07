@@ -35,12 +35,21 @@ logger = logging.getLogger(__name__)
 
 @tool
 def handoff_to_planner(
-    research_topic: Annotated[str, "The topic of the research task to be handed off."],
-    locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
+        research_topic: Annotated[str, "The topic of the research task to be handed off."],
+        locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
 ):
     """Handoff to planner agent to do plan."""
     # This tool is not returning anything: we're just using it
     # as a way for LLM to signal that it needs to hand off to planner agent
+    return
+
+
+@tool
+def handoff_task_to_planner(
+        task_steps: Annotated[str, "The details of the task to be handed off."],
+):
+    """Handoff the task details to planner agent to do plan."""
+    # same as above
     return
 
 
@@ -57,6 +66,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
             background_investigation_results = [
                 f"## {elem['title']}\n\n{elem['content']}" for elem in searched_content
             ]
+            logger.info(f"background_investigation_node:{background_investigation_results}")
             return {
                 "background_investigation_results": "\n\n".join(
                     background_investigation_results
@@ -78,24 +88,26 @@ def background_investigation_node(state: State, config: RunnableConfig):
 
 
 def planner_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["human_feedback", "reporter"]]:
     """Planner node that generate the full plan."""
     logger.info("Planner generating full plan")
     configurable = Configuration.from_runnable_config(config)
     plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
-    messages = apply_prompt_template("planner", state, configurable)
+    messages = apply_prompt_template("planner2", state, configurable)
+    logger.info(f"planner_node:{state}")
+    logger.info(f"configurable:{configurable}")
 
     if state.get("enable_background_investigation") and state.get(
-        "background_investigation_results"
+            "background_investigation_results"
     ):
         messages += [
             {
                 "role": "user",
                 "content": (
-                    "background investigation results of user query:\n"
-                    + state["background_investigation_results"]
-                    + "\n"
+                        "background investigation results of user query:\n"
+                        + state["background_investigation_results"]
+                        + "\n"
                 ),
             }
         ]
@@ -116,7 +128,11 @@ def planner_node(
 
     full_response = ""
     if AGENT_LLM_MAP["planner"] == "basic" and not configurable.enable_deep_thinking:
-        response = llm.invoke(messages)
+        try :
+            response = llm.invoke(messages)
+        except Exception as e:
+            print(e)
+            raise e
         full_response = response.model_dump_json(indent=4, exclude_none=True)
     else:
         response = llm.stream(messages)
@@ -153,9 +169,10 @@ def planner_node(
 
 
 def human_feedback_node(
-    state,
+        state,
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
     current_plan = state.get("current_plan", "")
+    logger.info(f"human_feedback_node-current_plan:{current_plan}")
     # check if the plan is auto accepted
     auto_accepted_plan = state.get("auto_accepted_plan", False)
     if not auto_accepted_plan:
@@ -203,18 +220,22 @@ def human_feedback_node(
 
 
 def coordinator_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["planner", "background_investigator", "__end__"]]:
     """Coordinator node that communicate with customers."""
     logger.info("Coordinator talking.")
     configurable = Configuration.from_runnable_config(config)
-    messages = apply_prompt_template("coordinator", state)
+    logger.info(f"coordinator_node state:{state}")
+    logger.info(f"coordinator_node config:{config}")
+    messages = apply_prompt_template("coordinator2", state)
     response = (
         get_llm_by_type(AGENT_LLM_MAP["coordinator"])
-        .bind_tools([handoff_to_planner])
+        .bind_tools([handoff_to_planner, handoff_task_to_planner])
         .invoke(messages)
     )
-    logger.debug(f"Current state messages: {state['messages']}")
+    logger.info(f"Current state messages: {state['messages']}")
+    logger.info(f"coordinator_node response: {response}")
+    logger.info(f"coordinator_node state2: {state}")
 
     goto = "__end__"
     locale = state.get("locale", "en-US")  # Default locale if not specified
@@ -222,15 +243,20 @@ def coordinator_node(
 
     if len(response.tool_calls) > 0:
         goto = "planner"
+        # todo, mock
+        state['enable_background_investigation'] = False
         if state.get("enable_background_investigation"):
             # if the search_before_planning is True, add the web search tool to the planner agent
             goto = "background_investigator"
         try:
             for tool_call in response.tool_calls:
-                if tool_call.get("name", "") != "handoff_to_planner":
+                if tool_call.get("name", "") not in ["handoff_to_planner", "handoff_task_to_planner"]:
                     continue
+                if tool_call.get("name", "") == "handoff_task_to_planner":
+                    research_topic = tool_call.get("args", {}).get("task_steps")
+                    break
                 if tool_call.get("args", {}).get("locale") and tool_call.get(
-                    "args", {}
+                        "args", {}
                 ).get("research_topic"):
                     locale = tool_call.get("args", {}).get("locale")
                     research_topic = tool_call.get("args", {}).get("research_topic")
@@ -241,8 +267,9 @@ def coordinator_node(
         logger.warning(
             "Coordinator response contains no tool calls. Terminating workflow execution."
         )
-        logger.debug(f"Coordinator response: {response}")
+        logger.info(f"Coordinator response: {response}")
     messages = state.get("messages", [])
+    logger.info(f"Coordinator goto:{goto}")
     if response.content:
         messages.append(HumanMessage(content=response.content, name="coordinator"))
     return Command(
@@ -259,6 +286,8 @@ def coordinator_node(
 def reporter_node(state: State, config: RunnableConfig):
     """Reporter node that write a final report."""
     logger.info("Reporter write final report")
+    if True:
+        return {"final_report": state}
     configurable = Configuration.from_runnable_config(config)
     current_plan = state.get("current_plan")
     input_ = {
@@ -302,7 +331,7 @@ def research_team_node(state: State):
 
 
 async def _execute_agent_step(
-    state: State, agent, agent_name: str
+        state: State, agent, agent_name: str
 ) -> Command[Literal["research_team"]]:
     """Helper function to execute a step using the specified agent."""
     current_plan = state.get("current_plan")
@@ -352,8 +381,8 @@ async def _execute_agent_step(
             agent_input["messages"].append(
                 HumanMessage(
                     content=resources_info
-                    + "\n\n"
-                    + "You MUST use the **local_search_tool** to retrieve the information from the resource files.",
+                            + "\n\n"
+                            + "You MUST use the **local_search_tool** to retrieve the information from the resource files.",
                 )
             )
 
@@ -414,11 +443,112 @@ async def _execute_agent_step(
     )
 
 
+async def _execute_agent_task_step(
+        state: State, agent, agent_name: str
+) -> Command[Literal["research_team"]]:
+    """Helper function to execute a step using the specified agent."""
+    current_plan = state.get("current_plan")
+    plan_title = current_plan.title
+    observations = state.get("observations", [])
+
+    # Find the first unexecuted step
+    current_step = None
+    completed_steps = []
+    for step in current_plan.steps:
+        if not step.execution_res:
+            current_step = step
+            break
+        else:
+            completed_steps.append(step)
+
+    if not current_step:
+        logger.warning("No unexecuted step found")
+        return Command(goto="research_team")
+
+    logger.info(f"Executing step: {current_step.title}, agent: {agent_name}")
+
+    # Format completed steps information
+    completed_steps_info = ""
+    if completed_steps:
+        completed_steps_info = "# Completed Research Steps\n\n"
+        for i, step in enumerate(completed_steps):
+            completed_steps_info += f"## Completed Step {i + 1}: {step.title}\n\n"
+            completed_steps_info += f"<finding>\n{step.execution_res}\n</finding>\n\n"
+
+    # Prepare the input for the agent with completed steps info
+    agent_input = {
+        "messages": [
+            HumanMessage(
+                content=f"# Task:\n\n{plan_title}\n\n{completed_steps_info}# Current Step\n\n## Title\n\n{current_step.title}\n\n## Description\n\n{current_step.description}\n\n"
+            )
+        ]
+    }
+
+    # Add citation reminder for researcher agent
+    if agent_name == "researcher":
+        # agent_input["messages"].append(
+        #     HumanMessage(
+        #         content="IMPORTANT: DO NOT include inline citations in the text. Instead, track all sources and include a References section at the end using link reference format. Include an empty line between each citation for better readability. Use this format for each reference:\n- [Source Title](URL)\n\n- [Another Source](URL)",
+        #         name="system",
+        #     )
+        # )
+        pass
+
+    # Invoke the agent
+    default_recursion_limit = 5
+    try:
+        env_value_str = os.getenv("AGENT_RECURSION_LIMIT", str(default_recursion_limit))
+        parsed_limit = int(env_value_str)
+
+        if parsed_limit > 0:
+            recursion_limit = parsed_limit
+            logger.info(f"Recursion limit set to: {recursion_limit}")
+        else:
+            logger.warning(
+                f"AGENT_RECURSION_LIMIT value '{env_value_str}' (parsed as {parsed_limit}) is not positive. "
+                f"Using default value {default_recursion_limit}."
+            )
+            recursion_limit = default_recursion_limit
+    except ValueError:
+        raw_env_value = os.getenv("AGENT_RECURSION_LIMIT")
+        logger.warning(
+            f"Invalid AGENT_RECURSION_LIMIT value: '{raw_env_value}'. "
+            f"Using default value {default_recursion_limit}."
+        )
+        recursion_limit = default_recursion_limit
+
+    logger.info(f"Agent input: {agent_input}")
+    result = await agent.ainvoke(
+        input=agent_input, config={"recursion_limit": recursion_limit}
+    )
+
+    # Process the result
+    response_content = result["messages"][-1].content
+    logger.debug(f"{agent_name.capitalize()} full response: {response_content}")
+
+    # Update the step with the execution result
+    current_step.execution_res = response_content
+    logger.info(f"Step '{current_step.title}' execution completed by {agent_name}")
+
+    return Command(
+        update={
+            "messages": [
+                HumanMessage(
+                    content=response_content,
+                    name=agent_name,
+                )
+            ],
+            "observations": observations + [response_content],
+        },
+        goto="research_team",
+    )
+
 async def _setup_and_execute_agent_step(
-    state: State,
-    config: RunnableConfig,
-    agent_type: str,
-    default_tools: list,
+        state: State,
+        config: RunnableConfig,
+        agent_type: str,
+        default_tools: list,
+        is_task: bool = False,
 ) -> Command[Literal["research_team"]]:
     """Helper function to set up an agent with appropriate tools and execute a step.
 
@@ -444,8 +574,8 @@ async def _setup_and_execute_agent_step(
     if configurable.mcp_settings:
         for server_name, server_config in configurable.mcp_settings["servers"].items():
             if (
-                server_config["enabled_tools"]
-                and agent_type in server_config["add_to_agents"]
+                    server_config["enabled_tools"]
+                    and agent_type in server_config["add_to_agents"]
             ):
                 mcp_servers[server_name] = {
                     k: v
@@ -455,19 +585,23 @@ async def _setup_and_execute_agent_step(
                 for tool_name in server_config["enabled_tools"]:
                     enabled_tools[tool_name] = server_name
 
+    logger.info("mcp_servers:", mcp_servers)
     # Create and execute agent with MCP tools if available
     if mcp_servers:
         client = MultiServerMCPClient(mcp_servers)
         loaded_tools = default_tools[:]
         all_tools = await client.get_tools()
         for tool in all_tools:
-            if tool.name in enabled_tools:
+            if tool.name in list(enabled_tools.keys()):
                 tool.description = (
                     f"Powered by '{enabled_tools[tool.name]}'.\n{tool.description}"
                 )
                 loaded_tools.append(tool)
         agent = create_agent(agent_type, agent_type, loaded_tools, agent_type)
-        return await _execute_agent_step(state, agent, agent_type)
+        if is_task:
+            return await _execute_agent_task_step(state, agent, agent_type)
+        else:
+            return await _execute_agent_step(state, agent, agent_type)
     else:
         # Use default tools if no MCP servers are configured
         agent = create_agent(agent_type, agent_type, default_tools, agent_type)
@@ -475,7 +609,7 @@ async def _setup_and_execute_agent_step(
 
 
 async def researcher_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["research_team"]]:
     """Researcher node that do research"""
     logger.info("Researcher node is researching.")
@@ -493,8 +627,23 @@ async def researcher_node(
     )
 
 
+async def task_resolver_node(
+        state: State, config: RunnableConfig
+) -> Command[Literal["research_team"]]:
+    """Task resolver node that to do task"""
+    logger.info("Task resolver node is running...")
+    tools = []
+    return await _setup_and_execute_agent_step(
+        state,
+        config,
+        "task_resolver",
+        tools,
+        True,
+    )
+
+
 async def coder_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["research_team"]]:
     """Coder node that do code analysis."""
     logger.info("Coder node is coding.")

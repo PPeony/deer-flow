@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class StepType(str, Enum):
     RESEARCH = "research"
     PROCESSING = "processing"
+    TASK_SOLVER = "task_solver"
 
 
 class Step(BaseModel):
@@ -24,7 +25,7 @@ class Step(BaseModel):
 
 class Plan(BaseModel):
     locale: str = Field(
-        ..., description="e.g. 'en-US' or 'zh-CN', based on the user's language"
+        ..., description="e.g. 'en-US' or 'zh-CN', based on the user's language. The default value should be 'en-US'."
     )
     has_enough_context: bool
     thought: str
@@ -38,6 +39,7 @@ class Plan(BaseModel):
         json_schema_extra = {
             "examples": [
                 {
+                    "locale": "en-US",
                     "has_enough_context": False,
                     "thought": (
                         "To understand the current market trends in AI, we need to gather comprehensive information."

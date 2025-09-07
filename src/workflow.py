@@ -69,7 +69,18 @@ async def run_agent_workflow_async(
                         "args": ["mcp-github-trending"],
                         "enabled_tools": ["get_github_trending_repositories"],
                         "add_to_agents": ["researcher"],
-                    }
+                    },
+                    "animate_downloader": {
+                        "transport": "stdio",
+                        "command": "python",
+                        "args": ["D:\\project\\AnimateDownloaderByBitcomet\\src\\test\\server.py"],
+                        "enabled_tools": ["get_web_page",
+                                          "call_bitcomet",
+                                          "get_all_files",
+                                          "get_file_content",
+                                          "get_name_hash_res"],
+                        "add_to_agents": ["task_resolver"],
+                    },
                 }
             },
         },

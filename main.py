@@ -127,6 +127,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # todo, mock
+    with open(r'C:\coding\project\deer-flow\download_commands.txt', 'r', encoding='utf-8') as f:
+        mock_query = f.read()
+    args.query = mock_query
+
     if args.interactive:
         # Pass command line arguments to main function
         main(
@@ -137,15 +142,15 @@ if __name__ == "__main__":
         )
     else:
         # Parse user input from command line arguments or user input
-        if args.query:
-            user_query = " ".join(args.query)
-        else:
-            # Loop until user provides non-empty input
-            while True:
-                user_query = input("Enter your query: ")
-                if user_query is not None and user_query != "":
-                    break
-
+        # if args.query:
+        #     user_query = " ".join(args.query)
+        # else:
+        #     # Loop until user provides non-empty input
+        #     while True:
+        #         user_query = input("Enter your query: ")
+        #         if user_query is not None and user_query != "":
+        #             break
+        user_query = args.query
         # Run the agent workflow with the provided parameters
         ask(
             question=user_query,

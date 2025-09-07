@@ -14,17 +14,19 @@ from .nodes import (
     planner_node,
     reporter_node,
     research_team_node,
-    researcher_node,
+    researcher_node, task_resolver_node,
 )
 from .types import State
 
 
 def continue_to_running_research_team(state: State):
     current_plan = state.get("current_plan")
+    print(f"continue_to_running_research_team:state:{state} ")
     if not current_plan or not current_plan.steps:
         return "planner"
 
     if all(step.execution_res for step in current_plan.steps):
+        print("goto-planner-all-over")
         return "planner"
 
     # Find first incomplete step
@@ -35,12 +37,19 @@ def continue_to_running_research_team(state: State):
             break
 
     if not incomplete_step:
+        print("goto-planner")
         return "planner"
 
     if incomplete_step.step_type == StepType.RESEARCH:
+        print("goto-researcher")
         return "researcher"
     if incomplete_step.step_type == StepType.PROCESSING:
+        print("goto-coder")
         return "coder"
+    if incomplete_step.step_type == StepType.TASK_SOLVER:
+        print("goto-task_resolver_node")
+        return "task_resolver"
+    print("goto-planner2")
     return "planner"
 
 
@@ -54,13 +63,14 @@ def _build_base_graph():
     builder.add_node("reporter", reporter_node)
     builder.add_node("research_team", research_team_node)
     builder.add_node("researcher", researcher_node)
+    builder.add_node("task_resolver", task_resolver_node)
     builder.add_node("coder", coder_node)
     builder.add_node("human_feedback", human_feedback_node)
     builder.add_edge("background_investigator", "planner")
     builder.add_conditional_edges(
         "research_team",
         continue_to_running_research_team,
-        ["planner", "researcher", "coder"],
+        ["planner", "researcher", "coder", "task_resolver"],
     )
     builder.add_edge("reporter", END)
     return builder
@@ -79,6 +89,7 @@ def build_graph_with_memory():
 
 def build_graph():
     """Build and return the agent workflow graph without memory."""
+    print("=====start build_graph")
     # build state graph
     builder = _build_base_graph()
     return builder.compile()
