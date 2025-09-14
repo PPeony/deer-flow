@@ -14,7 +14,7 @@ from .nodes import (
     planner_node,
     reporter_node,
     research_team_node,
-    researcher_node, task_resolver_node,
+    researcher_node, task_resolver_node, task_reporter_node,
 )
 from .types import State
 
@@ -61,6 +61,7 @@ def _build_base_graph():
     builder.add_node("background_investigator", background_investigation_node)
     builder.add_node("planner", planner_node)
     builder.add_node("reporter", reporter_node)
+    builder.add_node("task_reporter", task_reporter_node)
     builder.add_node("research_team", research_team_node)
     builder.add_node("researcher", researcher_node)
     builder.add_node("task_resolver", task_resolver_node)
@@ -73,6 +74,7 @@ def _build_base_graph():
         ["planner", "researcher", "coder", "task_resolver"],
     )
     builder.add_edge("reporter", END)
+    builder.add_edge("task_reporter", END)
     return builder
 
 

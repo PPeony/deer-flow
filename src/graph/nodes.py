@@ -16,7 +16,7 @@ from src.agents import create_agent
 from src.config.agents import AGENT_LLM_MAP
 from src.config.configuration import Configuration
 from src.llms.llm import get_llm_by_type
-from src.prompts.planner_model import Plan
+from src.prompts.planner_model import Plan, Step
 from src.prompts.template import apply_prompt_template
 from src.tools import (
     crawl_tool,
@@ -123,12 +123,13 @@ def planner_node(
         llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
 
     # if the plan iterations is greater than the max plan iterations, return the reporter node
+    configurable.max_plan_iterations = 2
     if plan_iterations >= configurable.max_plan_iterations:
-        return Command(goto="reporter")
+        return Command(goto="task_reporter")
 
     full_response = ""
     if AGENT_LLM_MAP["planner"] == "basic" and not configurable.enable_deep_thinking:
-        try :
+        try:
             response = llm.invoke(messages)
         except Exception as e:
             print(e)
@@ -146,7 +147,7 @@ def planner_node(
     except json.JSONDecodeError:
         logger.warning("Planner response is not a valid JSON")
         if plan_iterations > 0:
-            return Command(goto="reporter")
+            return Command(goto="task_reporter")
         else:
             return Command(goto="__end__")
     if isinstance(curr_plan, dict) and curr_plan.get("has_enough_context"):
@@ -157,7 +158,7 @@ def planner_node(
                 "messages": [AIMessage(content=full_response, name="planner")],
                 "current_plan": new_plan,
             },
-            goto="reporter",
+            goto="task_reporter",
         )
     return Command(
         update={
@@ -286,8 +287,6 @@ def coordinator_node(
 def reporter_node(state: State, config: RunnableConfig):
     """Reporter node that write a final report."""
     logger.info("Reporter write final report")
-    if True:
-        return {"final_report": state}
     configurable = Configuration.from_runnable_config(config)
     current_plan = state.get("current_plan")
     input_ = {
@@ -322,6 +321,29 @@ def reporter_node(state: State, config: RunnableConfig):
     logger.info(f"reporter response: {response_content}")
 
     return {"final_report": response_content}
+
+
+def task_reporter_node(state: State, config: RunnableConfig):
+    logger.info("Task Reporter write final report")
+    current_plan = state.get("current_plan")
+    messages = state["messages"]
+    if len(current_plan.steps) < 1:
+        logger.info(f"successfully complete task")
+        messages += [
+            HumanMessage(
+                content=f"{messages[-2].content}",
+                name="reporter",
+            )
+        ]
+        return {"final_report": f"{messages[-2].content}"}
+    logger.error(f"failed complete task")
+    state["messages"] += [
+        HumanMessage(
+            content=f"failed complete task",
+            name="reporter",
+        )
+    ]
+    return {"final_report": "failed complete task"}
 
 
 def research_team_node(state: State):
@@ -542,6 +564,7 @@ async def _execute_agent_task_step(
         },
         goto="research_team",
     )
+
 
 async def _setup_and_execute_agent_step(
         state: State,

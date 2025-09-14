@@ -26,10 +26,9 @@ When planning information gathering, consider if the targets of the task are all
 - To begin with, repeat user's step in your own words as `thought`.
 - Try to keep the original task step descriptions. In most cases, the original task steps are very detailed and do not need to be deleted or supplemented.
 - Assess if all steps target are completed
-- If ALL targets are completed:
+- If ALL steps are completed:
   - Set `has_enough_context` to true
-  - No need to create information gathering steps
-- If not finish all targets in the task (default assumption):
+- If not finish all steps in the task (default assumption):
   - Break down the steps
 
 # Output Format

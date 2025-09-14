@@ -1,12 +1,14 @@
+# Description
 You need to search for torrent links and download anime according to instructions.
-Step 1:
+
+# Step 1:
 Call the tool to retrieve information from the file D:\\animate\\animate_storage.json, which contains a JSON string.
 Expected output: The expected output uses the following format:
 ```
 Step Answer: [json]
 ```
 
-Step 2:
+# Step 2:
 Search for magnet links on the webpage for each element in the JSON array obtained from the first step. Therefore, you need to call this tool multiple times. Searched web pages: https://www.comicat.org/search.php?keyword={search_name} .
 Request header is VERY IMPORTANT!!! You need to use this request header, not a single character less or more, otherwise the request may fail:
 ```
@@ -14,29 +16,40 @@ Request header is VERY IMPORTANT!!! You need to use this request header, not a s
 ```
 IMPORTANT: The key should be "User-Agent", NOT "User - Agent", no space in the key.
 The search_name in the url is the search_name in the configuration file that is read in the first step.
-The tool will return some HTML information on the page, and the magnet link information is in the href attribute. The field after "show-" is the magnet suffix. You need to concatenate the prefix of the magnetic link for linking.
+The tool will return some HTML information on the page, and the magnet link information is in the href attribute. __The field after "show-" is the magnet suffix. You need to concatenate the prefix of the magnetic link for linking.__
 The tool may truncate the webpage, and you need to search for the desired results from the complete tags.
-Note that the original configuration file also includes the chapter, which is the number of episodes in the video. When searching for web magnet links, it is important to download the correct number of episodes. If there is no corresponding magnetic link, it should be displayed in the final result.
-Note there is a column on the webpage that records file sizes. Do not select files larger than 1GB unless they are the only ones available.
+__Note__ that the original configuration file also includes the chapter, which is the number of episodes in the video. When searching for web magnet links, it is important to download the correct number of episodes. If there is no corresponding magnetic link, it should be displayed in the final result.
+__Note__ there is a column on the webpage that records file sizes. Do not select files larger than 1GB unless they are the only ones available.
 You need to record the name of the video that successfully found the magnet link and its magnet link. If no magnetic link is found, fill in the blank string.
 Expected output: You need to generate a JSON, similar to {name:'xxx ', magnet:'xxx', chapter:'xxx '}, and the result is a JSON array. The expected output is in the following format:
 ```
 Step Answer: [json]
 ```
 
-Step 3:
-Call the bitcomet tool to download the file
+# Step 3:
+Call the bitcomet tool to download the file.
 Expected output: Output whether the bitcomet command was successfully called and return a JSON array
 ```
 Step Answer: [json]
 ```
+## Note
+1. Each animate in json should be downloaded once, and only one episode is needed for each animate.For example, if there are three elements in json, you need to call the tool to download three times.
 
-Step 4:
+# Step 4:
 Call the tool and scan the D:\\animate folder to see if there are any newly added bitcomet download files.The first half of the file name for this downloaded file should be similar to the file name obtained in Step 2.
-The file name of the newly added download file ends with ".bc!". Note that both the name and the number of episodes must match. If there is, you need to return the complete path of this folder.
+The file name of the newly added download file ends with ".bc!".
+__Note:__ Both the name and the number of episodes must match. If there is, you need to return the complete path of this folder. If there isn't a file end with ".bc!", you shouldn't add a familiar path to the result.
 After obtaining the contents of the folder, fill the file path into the JSON by comparing the JSON array from step 2.
-Expected output: Return the filled JSON array. Here is the format of your answer.
+Expected output: Return the json format of the example below. Your output should not have the ``` symbol.
 ```
-Final Answer: [{\"name\":\"xxx\",\"magnet\": \"xxx\", \"chapter\":\"xxx\",\"path\":\"xxx\"},
-{\"name\":\"xxx2\",\"magnet\": \"xxx2\", \"chapter\":\"xxx2\",\"path\":\"xxx2\"}]
+[{"name":"xxx","magnet": "xxx", "chapter":"xxx","path":"xxx", "download_failed_reason_type":0, "download_failed_reason_detail":""},
+{"name":"xxx2","magnet": "xxx2", "chapter":"xxx2","path":"xxx2", "download_failed_reason_type":0, "download_failed_reason_detail":""}]
 ```
+## Note
+1. If you can't find the file end with ".bc!", it means you download it failed, you need to observe the result and try it again.
+2. The "download_failed_reason_type" in the result json has 3 types.
+- When the animate download successfully, the value is 0.
+- If the animation episode number cannot be found, the value is 1
+- For other cases, the value is 2. And in these cases, you can fill the "download_failed_reason_detail" field with what you think the download failed for.
+- If download successfully, the "download_failed_reason_detail" field should be empty.
+

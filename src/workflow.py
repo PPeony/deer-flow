@@ -96,6 +96,8 @@ async def run_agent_workflow_async(
                     continue
                 last_message_cnt = len(s["messages"])
                 message = s["messages"][-1]
+                if message.name == 'reporter':
+                    print(f'reporter:{message.content}')
                 if isinstance(message, tuple):
                     print(message)
                 else:
