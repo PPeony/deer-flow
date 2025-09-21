@@ -20,6 +20,7 @@ def ask(
     max_plan_iterations=1,
     max_step_num=3,
     enable_background_investigation=True,
+    final_result_dict=None,
 ):
     """Run the agent workflow with the given question.
 
@@ -37,6 +38,7 @@ def ask(
             max_plan_iterations=max_plan_iterations,
             max_step_num=max_step_num,
             enable_background_investigation=enable_background_investigation,
+            final_result_dict=final_result_dict,
         )
     )
 

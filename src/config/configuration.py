@@ -54,7 +54,7 @@ def get_recursion_limit(default: int = 25) -> int:
     parsed_limit = get_int_env("AGENT_RECURSION_LIMIT", default)
 
     if parsed_limit > 0:
-        logger.info(f"Recursion limit set to: {parsed_limit}")
+        logger.info(f"2Recursion limit set to: {parsed_limit}")
         return parsed_limit
     else:
         logger.warning(

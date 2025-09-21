@@ -423,7 +423,7 @@ async def _execute_agent_step(
 
         if parsed_limit > 0:
             recursion_limit = parsed_limit
-            logger.info(f"Recursion limit set to: {recursion_limit}")
+            logger.info(f"3Recursion limit set to: {recursion_limit}")
         else:
             logger.warning(
                 f"AGENT_RECURSION_LIMIT value '{env_value_str}' (parsed as {parsed_limit}) is not positive. "
@@ -524,7 +524,7 @@ async def _execute_agent_task_step(
 
         if parsed_limit > 0:
             recursion_limit = parsed_limit
-            logger.info(f"Recursion limit set to: {recursion_limit}")
+            logger.info(f"1Recursion limit set to: {recursion_limit}")
         else:
             logger.warning(
                 f"AGENT_RECURSION_LIMIT value '{env_value_str}' (parsed as {parsed_limit}) is not positive. "

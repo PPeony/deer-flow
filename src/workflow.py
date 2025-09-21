@@ -10,6 +10,7 @@ from src.graph import build_graph
 logging.basicConfig(
     level=logging.INFO,  # Default level is INFO
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="serverb.log",
 )
 
 
@@ -30,6 +31,7 @@ async def run_agent_workflow_async(
     max_plan_iterations: int = 1,
     max_step_num: int = 3,
     enable_background_investigation: bool = True,
+    final_result_dict={},
 ):
     """Run the agent workflow asynchronously with the given user input.
 
@@ -87,27 +89,31 @@ async def run_agent_workflow_async(
         "recursion_limit": get_recursion_limit(default=100),
     }
     last_message_cnt = 0
+    logger.info("QQQQQ")
     async for s in graph.astream(
         input=initial_state, config=config, stream_mode="values"
     ):
         try:
+            logger.info("AAAAA")
+            logger.info(f"Raw stream output: {s}")
             if isinstance(s, dict) and "messages" in s:
                 if len(s["messages"]) <= last_message_cnt:
                     continue
                 last_message_cnt = len(s["messages"])
                 message = s["messages"][-1]
                 if message.name == 'reporter':
-                    print(f'reporter:{message.content}')
+                    logger.info(f'reporter:{message.content}')
+                    final_result_dict['result'] = message.content
                 if isinstance(message, tuple):
-                    print(message)
+                    logger.info(message)
                 else:
                     message.pretty_print()
             else:
                 # For any other output format
-                print(f"Output: {s}")
+                logger.info(f"Output: {s}")
         except Exception as e:
             logger.error(f"Error processing stream output: {e}")
-            print(f"Error processing output: {str(e)}")
+            logger.error(f"Error processing output: {str(e)}")
 
     logger.info("Async workflow completed successfully")
 
